@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+    <title>Enhanced Side-Scroller Game</title>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas dimensions
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Define the player (airplane)
+        const player = {
+            x: 50,
+            y: canvas.height / 2,
+            width: 40,
+            height: 40,
+            color: 'blue',
+            speed: 5,
+            isSlowMotion: false,
+            isShrunk: false,
+            shrinkCooldown: 5000, // 5 seconds cooldown for shrink power-up
+            lastShrinkTime: 0,
+            isInvincible: false,
+            invincibleDuration: 1200, // 1.2 seconds of invincibility
+            invincibleCooldown: 2500, // 2.5 seconds cooldown for invincibility power-up
+            lastInvincibleTime: 0,
+        };
+
+        // Define the pipes
+        const pipes = [];
+
+        // Define game state
+        let isGameOver = false;
+
+        // Handle keyboard input
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false,
+            KeyW: false,
+            KeyA: false,
+            KeyS: false,
+            KeyD: false,
+            KeyE: false,
+            KeyQ: false,
+            KeyR: false,
+            ShiftLeft: false,
+            Space: false,
+        };
+
+        function handleKeyDown(event) {
+            if (keys.hasOwnProperty(event.code)) {
+                keys[event.code] = true;
+            }
+        }
+
+        function handleKeyUp(event) {
+            if (keys.hasOwnProperty(event.code)) {
+                keys[event.code] = false;
+            }
+        }
+
+        // Update game elements
+        function update() {
+            if (isGameOver) {
+                return; // Don't update if the game is over
+            }
+
+            // Enable slow-motion when holding the 'ShiftLeft' key
+            player.isSlowMotion = keys.ShiftLeft;
+
+            // Shrink power-up logic
+            if (keys.KeyQ && !player.isShrunk && Date.now() - player.lastShrinkTime >= player.shrinkCooldown) {
+                player.isShrunk = true;
+                player.width /= 2;
+                player.height /= 2;
+                player.speed *= 2; // Double speed when shrunk
+                player.lastShrinkTime = Date.now();
+                setTimeout(() => {
+                    player.isShrunk = false;
+                    player.width *= 2;
+                    player.height *= 2;
+                    player.speed /= 2; // Restore original speed when not shrunk
+                }, 2000); // Shrink lasts for 2 seconds
+            }
+
+            // Invincibility power-up logic
+            if (keys.KeyE && !player.isInvincible && Date.now() - player.lastInvincibleTime >= player.invincibleCooldown) {
+                player.isInvincible = true;
+                player.color = 'rgba(0, 255, 0, 0.5)'; // Semi-transparent green during invincibility
+                player.lastInvincibleTime = Date.now();
+                setTimeout(() => {
+                    player.isInvincible = false;
+                    player.color = 'blue';
+                }, player.invincibleDuration);
+            }
+
+            // Move the player based on key input
+            if (keys.ArrowUp || keys.KeyW) {
+                player.y -= player.speed * (player.isSlowMotion ? 0.5 : 1);
+            }
+            if (keys.ArrowDown || keys.KeyS) {
+                player.y += player.speed * (player.isSlowMotion ? 0.5 : 1);
+            }
+            if (keys.ArrowLeft || keys.KeyA) {
+                player.x -= player.speed * (player.isSlowMotion ? 0.5 : 1);
+            }
+            if (keys.ArrowRight || keys.KeyD) {
+                player.x += player.speed * (player.isSlowMotion ? 0.5 : 1);
+            }
+
+            // Ensure the player stays within the canvas boundaries
+            if (player.x < 0) {
+                player.x = 0;
+            }
+            if (player.x + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            }
+            if (player.y < 0) {
+                player.y = 0;
+            }
+            if (player.y + player.height > canvas.height) {
+                player.y = canvas.height - player.height;
+            }
+
+            // Move the pipes
+            for (let i = 0; i < pipes.length; i++) {
+                pipes[i].x -= 5 * (player.isSlowMotion ? 0.5 : 1); // Adjust pipe speed
+
+                // Check for collision with player
+                if (
+                    !player.isInvincible &&
+                    player.x < pipes[i].x + pipes[i].width &&
+                    player.x + player.width > pipes[i].x &&
+                    player.y < pipes[i].y + pipes[i].height &&
+                    player.y + player.height > pipes[i].y
+                ) {
+                    // Collision detected, game over
+                    gameOver();
+                    return;
+                }
+
+                // Remove off-screen pipes
+                if (pipes[i].x + pipes[i].width < 0) {
+                    pipes.splice(i, 1);
+                    i--;
+                }
+            }
+
+            // Generate new pipes with more distance between them
+            if (Math.random() < 0.01) { // Adjust pipe generation frequency
+                const pipeHeight = Math.random() * (canvas.height - 100) + 50;
+                pipes.push({ x: canvas.width, y: 0, width: 30, height: pipeHeight });
+                pipes.push({ x: canvas.width + 200, y: pipeHeight + 100, width: 30, height: canvas.height - pipeHeight - 100 });
+            }
+        }
+
+        // Draw game elements
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Draw the pipes
+            ctx.fillStyle = 'green';
+            for (let i = 0; i < pipes.length; i++) {
+                ctx.fillRect(pipes[i].x, pipes[i].y, pipes[i].width, pipes[i].height);
+            }
+
+            // Draw game over screen if the game is over
+            if (isGameOver) {
+                ctx.fillStyle = 'black';
+                ctx.font = '50px Arial';
+                ctx.fillText('Game Over', canvas.width / 2 - 150, canvas.height / 2 - 25);
+                ctx.font = '20px Arial';
+                ctx.fillText('Press R to restart', canvas.width / 2 - 100, canvas.height / 2 + 25);
+            }
+        }
+
+        // Game over logic
+        function gameOver() {
+            isGameOver = true;
+            player.isSlowMotion = false;
+            player.isShrunk = false;
+            player.isInvincible = false;
+            player.color = 'blue';
+            pipes.length = 0; // Clear pipes array
+        }
+
+        // Restart the game
+        function restartGame() {
+            isGameOver = false;
+            player.x = 50;
+            player.y = canvas.height / 2;
+            player.width = 40;
+            player.height = 40;
+            player.speed = 5;
+            player.lastShrinkTime = 0;
+            player.isInvincible = false;
+            player.color = 'blue';
+            player.lastInvincibleTime = 0;
+            pipes.length = 0; // Clear pipes array
+        }
+
+        // Handle key press for restart
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'KeyR' && isGameOver) {
+                restartGame();
+            }
+        });
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game loop
+        gameLoop();
+    </script>
+</body>
+</html>
